@@ -25,3 +25,51 @@ jobs:
         # Запускает команду go vet.
           run: |
             go vet ./...
+
+  # название задания
+  deploy:
+    # Эта строка будет выводиться как заголовок задания в GitHub Actions.
+    name: Push Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    # Задание deploy запустится только после успешного завершения задания test.
+    needs: test
+    # запустится только в случае указания тега для коммита, который вы пушите в GitHub.
+    if: startsWith(github.ref, 'refs/tags')
+    steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+
+        # Это действие создаст и загрузит конструктор, который можно использовать на следующих этапах вашего рабочего процесса
+        - name: Set up Docker buildx
+          uses: docker/setup-buildx-action@v3
+
+        #  Действие GitHub для входа в DockerHub.
+        - name: Log in to Docker Hub
+          uses: docker/login-action@v3
+          with: 
+            # Имя пользователя DockerHub, которое вы добавляли в секреты.
+            username: ${{ secrets.DOCKER_USERNAME }}
+            # Токен, который вы генерировали в DockerHub, а потом сохранили в секретах репозитория.
+            password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
+
+        - name: Extract metadata (tags, labels) for Docker
+          id: meta
+          # Это нужно для того, чтобы добавить тег к имени образа вашего приложения в DockerHub.
+          uses: docker/metadata-action@v5.5.1
+          with:
+            # Имя вашего Docker-образа, который вы будете пушить в DockerHub.
+            images: starl1ng/hello-golang
+
+        - name: Build and push Docker Image
+        # Действие GitHub для сборки Docker образа и отправки его в DockerHub.
+          uses: docker/build-push-action@v5
+          with:
+            # Контекст для сборки образа. В данном случае текущий каталог. 
+            context: .
+            # при успешной сборке образа, нужно будет запушить его в DockerHub.
+            push: true
+            # из шага выше, которому присвоен id meta, получает тег, чтобы добавить его к имени вашего образа.
+            tags: ${{ steps.meta.outputs.tags }}
+            # получает метку, чтобы добавить её к вашему образу. Но у вас меток нет.
+            labels: ${{ steps.meta.outputs.labels }}
